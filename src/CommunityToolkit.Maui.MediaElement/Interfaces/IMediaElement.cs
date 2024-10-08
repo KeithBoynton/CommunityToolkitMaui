@@ -139,6 +139,14 @@ public interface IMediaElement : IView, IAsynchronousMediaElementHandler
 	void Play();
 
 	/// <summary>
+	/// Move to a specific index in the current playlist.
+	/// </summary>
+	/// <param name="index">The requested index to move to.</param>
+	/// <param name="token"><see cref="CancellationToken"/>.</param>
+	/// <remarks>If <paramref name="index"/> is outside of the range of the current playlist, nothing will happen.</remarks>
+	Task MoveTo(int index, CancellationToken token = default);
+
+	/// <summary>
 	/// Seek to a specific position in the currently playing media.
 	/// </summary>
 	/// <param name="position">The requested position to seek to.</param>
@@ -155,6 +163,11 @@ public interface IMediaElement : IView, IAsynchronousMediaElementHandler
 	/// Triggers the <see cref="MediaElement.SeekCompleted"/> event.
 	/// </summary>
 	internal void SeekCompleted();
+
+	/// <summary>
+	/// Triggers the <see cref="MediaElement.PlaylistIndexChanged"/> event.
+	/// </summary>
+	internal void PlaylistIndexChanged(MediaPlaylistIndexChangedEventArgs args);
 
 	/// <summary>
 	/// Triggers a <see cref="CurrentState"/> change.

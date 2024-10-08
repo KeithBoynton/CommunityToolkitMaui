@@ -18,6 +18,12 @@ public abstract class MediaSource : Element
 		remove => weakEventManager.RemoveEventHandler(value);
 	}
 
+	internal event EventHandler PlaylistChanged
+	{
+		add => weakEventManager.AddEventHandler(value);
+		remove => weakEventManager.RemoveEventHandler(value);
+	}
+
 	/// <summary>
 	/// An implicit operator to convert a string value into a <see cref="MediaSource"/>.
 	/// </summary>
@@ -77,7 +83,33 @@ public abstract class MediaSource : Element
 	}
 
 	/// <summary>
+	/// Creates a <see cref="PlaylistMediaSource"/> from a list of MediaSources.
+	/// </summary>
+	/// <param name="sources">IList of MediaSource.</param>
+	/// <returns>A <see cref="PlaylistMediaSource"/> instance.</returns>
+	/// <exception cref="ArgumentException">Thrown if <paramref name="sources"/> is not an IList of MediaSource or is empty.</exception>
+	public static MediaSource? FromList(IList<MediaSource>? sources)
+	{
+		if (sources is null)
+		{
+			return null;
+		}
+
+		if (!(sources is IList<MediaSource>) || sources.Count == 0)
+		{
+			throw new ArgumentException("sources must be a non empty IList of MediaSource", nameof(sources));
+		}
+
+		return new PlaylistMediaSource { Sources = sources };
+	}
+
+	/// <summary>
 	/// Triggers the <see cref="SourceChanged"/> event.
 	/// </summary>
 	protected void OnSourceChanged() => weakEventManager.HandleEvent(this, EventArgs.Empty, nameof(SourceChanged));
+
+	/// <summary>
+	/// Triggers the <see cref="PlaylistChanged"/> event.
+	/// </summary>
+	protected void OnPlaylistChanged() => weakEventManager.HandleEvent(this, EventArgs.Empty, nameof(PlaylistChanged));
 }

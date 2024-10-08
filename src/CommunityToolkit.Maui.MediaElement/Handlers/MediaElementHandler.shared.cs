@@ -42,6 +42,7 @@ public partial class MediaElementHandler
 		[nameof(MediaElement.PlayRequested)] = MapPlayRequested,
 		[nameof(MediaElement.PauseRequested)] = MapPauseRequested,
 		[nameof(MediaElement.SeekRequested)] = MapSeekRequested,
+		[nameof(MediaElement.MoveToRequested)] = MapMoveToRequested,
 		[nameof(MediaElement.StopRequested)] = MapStopRequested
 	};
 
@@ -193,6 +194,23 @@ public partial class MediaElementHandler
 		await (handler.mediaManager?.Seek(positionArgs.RequestedPosition, CancellationToken.None) ?? Task.CompletedTask);
 
 		((IMediaElement)mediaElement).SeekCompletedTCS.TrySetResult();
+	}
+
+	/// <summary>
+	/// Maps the seek operation request between the abstract <see cref="MediaElement"/> and platform counterpart.
+	/// </summary>
+	/// <param name="handler">The associated handler.</param>
+	/// <param name="mediaElement">The associated <see cref="MediaElement"/> instance.</param>
+	/// <param name="args">The associated event arguments for this request.</param>
+	/// <remarks><paramref name="args"/> should be of type <see cref="PlaylistMoveToRequestedEventArgs"/>, otherwise nothing happens.</remarks>
+	public static async void MapMoveToRequested(MediaElementHandler handler, MediaElement mediaElement, object? args)
+	{
+		ArgumentNullException.ThrowIfNull(args);
+
+		var moveToArgs = (PlaylistMoveToRequestedEventArgs)args;
+		await (handler.mediaManager?.MoveTo(moveToArgs.RequestedIndex, CancellationToken.None) ?? Task.CompletedTask);
+
+		((IMediaElement)mediaElement).MoveToCompletedTCS.TrySetResult();
 	}
 
 	/// <summary>

@@ -102,6 +102,16 @@ public partial class MediaManager
 	}
 
 	/// <summary>
+	/// Invokes the move operation on the platform element.
+	/// </summary>
+	/// <param name="index">The index to move to.</param>
+	/// <param name="token"><see cref="CancellationToken"/> ></param>
+	public Task MoveTo(int index, CancellationToken token = default)
+	{
+		return PlatformMoveTo(index, token);
+	}
+
+	/// <summary>
 	/// Invokes the stop operation on the platform element.
 	/// </summary>
 	public void Stop()
@@ -200,6 +210,13 @@ public partial class MediaManager
 	protected virtual partial Task PlatformSeek(TimeSpan position, CancellationToken token);
 
 	/// <summary>
+	/// Invokes the platform move functionality and moves to a specific index.
+	/// </summary>
+	/// <param name="index">The index to move to.</param>
+	/// <param name="token"><see cref="CancellationToken"/></param>
+	protected virtual partial Task PlatformMoveTo(int index, CancellationToken token);
+
+	/// <summary>
 	/// Invokes the platform stop functionality and stops media playback.
 	/// </summary>
 	protected virtual partial void PlatformStop();
@@ -255,6 +272,11 @@ public partial class MediaManager
 partial class MediaManager
 {
 	protected virtual partial Task PlatformSeek(TimeSpan position, CancellationToken token)
+	{
+		token.ThrowIfCancellationRequested();
+		return Task.CompletedTask;
+	}
+	protected virtual partial Task PlatformMoveTo(int index, CancellationToken token)
 	{
 		token.ThrowIfCancellationRequested();
 		return Task.CompletedTask;

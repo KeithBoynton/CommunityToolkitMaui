@@ -122,10 +122,12 @@ public class MediaElement : View, IMediaElement, IDisposable
 
 	readonly WeakEventManager eventManager = new();
 	readonly SemaphoreSlim seekToSemaphoreSlim = new(1, 1);
+	readonly SemaphoreSlim moveToSemaphoreSlim = new(1, 1);
 
 	bool isDisposed;
 	IDispatcherTimer? timer;
 	TaskCompletionSource seekCompletedTaskCompletionSource = new();
+	TaskCompletionSource moveToCompletedTaskCompletionSource = new();
 
 	/// <inheritdoc cref="IMediaElement.MediaEnded"/>
 	public event EventHandler MediaEnded
@@ -169,6 +171,13 @@ public class MediaElement : View, IMediaElement, IDisposable
 		remove => eventManager.RemoveEventHandler(value);
 	}
 
+	/// <inheritdoc cref="IMediaElement.PlaylistIndexChanged"/>
+	public event EventHandler<MediaPlaylistIndexChangedEventArgs> PlaylistIndexChanged
+	{
+		add => eventManager.AddEventHandler(value);
+		remove => eventManager.RemoveEventHandler(value);
+	}
+
 	internal event EventHandler StatusUpdated
 	{
 		add => eventManager.AddEventHandler(value);
@@ -194,6 +203,12 @@ public class MediaElement : View, IMediaElement, IDisposable
 	}
 
 	internal event EventHandler<MediaSeekRequestedEventArgs> SeekRequested
+	{
+		add => eventManager.AddEventHandler(value);
+		remove => eventManager.RemoveEventHandler(value);
+	}
+
+	internal event EventHandler<PlaylistMoveToRequestedEventArgs> MoveToRequested
 	{
 		add => eventManager.AddEventHandler(value);
 		remove => eventManager.RemoveEventHandler(value);
@@ -412,6 +427,7 @@ public class MediaElement : View, IMediaElement, IDisposable
 
 	/// <inheritdoc/>
 	TaskCompletionSource IAsynchronousMediaElementHandler.SeekCompletedTCS => seekCompletedTaskCompletionSource;
+	TaskCompletionSource IAsynchronousMediaElementHandler.MoveToCompletedTCS => moveToCompletedTaskCompletionSource;
 
 	/// <inheritdoc/>
 	public void Dispose()
@@ -432,6 +448,25 @@ public class MediaElement : View, IMediaElement, IDisposable
 	{
 		OnPlayRequested();
 		Handler?.Invoke(nameof(PlayRequested));
+	}
+
+	/// <inheritdoc cref="IMediaElement.MoveTo"/>
+	public async Task MoveTo(int index, CancellationToken token = default)
+	{
+		await moveToSemaphoreSlim.WaitAsync(token);
+
+		try
+		{
+			PlaylistMoveToRequestedEventArgs args = new(index);
+			Handler?.Invoke(nameof(MoveToRequested), args);
+
+			await moveToCompletedTaskCompletionSource.Task.WaitAsync(token);
+		}
+		finally
+		{
+			moveToCompletedTaskCompletionSource = new();
+			moveToSemaphoreSlim.Release();
+		}
 	}
 
 	/// <inheritdoc cref="IMediaElement.SeekTo(TimeSpan, CancellationToken)"/>
@@ -503,6 +538,7 @@ public class MediaElement : View, IMediaElement, IDisposable
 		{
 			ClearTimer();
 			seekToSemaphoreSlim.Dispose();
+			moveToSemaphoreSlim.Dispose();
 		}
 
 		isDisposed = true;
@@ -581,8 +617,11 @@ public class MediaElement : View, IMediaElement, IDisposable
 			SetInheritedBindingContext(newValue, BindingContext);
 		}
 
-		InvalidateMeasure();
-		InitializeTimer();
+		MainThread.InvokeOnMainThreadAsync(() =>
+		{
+			InvalidateMeasure();
+			InitializeTimer();
+		});
 	}
 
 	void OnSourcePropertyChanging(MediaSource? oldValue)
@@ -615,10 +654,18 @@ public class MediaElement : View, IMediaElement, IDisposable
 		OnSeekCompleted();
 	}
 
+	void IMediaElement.PlaylistIndexChanged(MediaPlaylistIndexChangedEventArgs args)
+	{
+		OnPlaylistIndexChanged(args);
+	}
+
 	void IMediaElement.CurrentStateChanged(MediaElementState newState) => CurrentState = newState;
 
 	void OnPositionChanged(MediaPositionChangedEventArgs mediaPositionChangedEventArgs) =>
 		eventManager.HandleEvent(this, mediaPositionChangedEventArgs, nameof(PositionChanged));
+
+	void OnPlaylistIndexChanged(MediaPlaylistIndexChangedEventArgs mediaPlaylistItemChangedEventArgs) =>
+		eventManager.HandleEvent(this, mediaPlaylistItemChangedEventArgs, nameof(PlaylistIndexChanged));
 
 	void OnStateChanged(MediaStateChangedEventArgs mediaStateChangedEventArgs) =>
 		eventManager.HandleEvent(this, mediaStateChangedEventArgs, nameof(StateChanged));

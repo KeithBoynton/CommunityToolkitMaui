@@ -114,6 +114,26 @@ partial class MediaManager : IDisposable
 		static void UpdatePosition(in MediaPlayerElement mediaPlayerElement, in TimeSpan position) => mediaPlayerElement.MediaPlayer.Position = position;
 	}
 
+	protected virtual async partial Task PlatformMoveTo(int index, CancellationToken token)
+	{
+		if (Player is null)
+		{
+			return;
+		}
+
+		await MainThread.InvokeOnMainThreadAsync(() =>
+		{
+			if (Player.Source is MediaPlaybackList mediaPlaybackList)
+			{
+				if (mediaPlaybackList.Items != null && mediaPlaybackList.Items.Count > index)
+				{
+					token.ThrowIfCancellationRequested();
+					mediaPlaybackList.MoveTo((uint)index);
+				}
+			}
+		});
+	}
+
 	protected virtual partial void PlatformStop()
 	{
 		if (Player is null)
@@ -271,35 +291,60 @@ partial class MediaManager : IDisposable
 			return;
 		}
 
-		MediaElement.Position = TimeSpan.Zero;
-		MediaElement.Duration = TimeSpan.Zero;
-		Player.AutoPlay = MediaElement.ShouldAutoPlay;
+		await MainThread.InvokeOnMainThreadAsync(async () =>
+		{
+			MediaElement.Position = TimeSpan.Zero;
+			MediaElement.Duration = TimeSpan.Zero;
+			Player.AutoPlay = MediaElement.ShouldAutoPlay;
 
-		if (MediaElement.Source is UriMediaSource uriMediaSource)
+			Player.Source = await PlatformCreateMediaSource(MediaElement.Source);
+		});
+	}
+
+	async Task<IMediaPlaybackSource> PlatformCreateMediaSource(MediaSource source)
+	{
+		if (source is UriMediaSource uriMediaSource)
 		{
 			var uri = uriMediaSource.Uri?.AbsoluteUri;
 			if (!string.IsNullOrWhiteSpace(uri))
 			{
-				Player.Source = WinMediaSource.CreateFromUri(new Uri(uri));
+				return WinMediaSource.CreateFromUri(new Uri(uri));
 			}
 		}
-		else if (MediaElement.Source is FileMediaSource fileMediaSource)
+		else if (source is FileMediaSource fileMediaSource)
 		{
 			var filename = fileMediaSource.Path;
 			if (!string.IsNullOrWhiteSpace(filename))
 			{
 				StorageFile storageFile = await StorageFile.GetFileFromPathAsync(filename);
-				Player.Source = WinMediaSource.CreateFromStorageFile(storageFile);
+				return WinMediaSource.CreateFromStorageFile(storageFile);
 			}
 		}
-		else if (MediaElement.Source is ResourceMediaSource resourceMediaSource)
+		else if (source is ResourceMediaSource resourceMediaSource)
 		{
 			string path = "ms-appx:///" + resourceMediaSource.Path;
 			if (!string.IsNullOrWhiteSpace(path))
 			{
-				Player.Source = WinMediaSource.CreateFromUri(new Uri(path));
+				return WinMediaSource.CreateFromUri(new Uri(path));
+			}
+		} else if (source is PlaylistMediaSource playlistMediaSource)
+		{
+			if (playlistMediaSource.Sources is not null)
+			{
+				var mediaPlaybackList = new MediaPlaybackList();
+				mediaPlaybackList.CurrentItemChanged += HandleMediaPlaylistCurrentItemChanged;
+
+				foreach (var playlistItem in playlistMediaSource.Sources)
+				{
+					var mpbItem = new MediaPlaybackItem((WinMediaSource)await PlatformCreateMediaSource(playlistItem));
+					mediaPlaybackList.Items.Add(mpbItem);
+				}
+
+				return mediaPlaybackList;
 			}
 		}
+
+		throw new InvalidDataException("Invalid MediaSource");
 	}
 
 	protected virtual partial void PlatformUpdateShouldLoopPlayback()
@@ -497,5 +542,26 @@ partial class MediaManager : IDisposable
 	void OnPlaybackSessionSeekCompleted(MediaPlaybackSession sender, object args)
 	{
 		MediaElement?.SeekCompleted();
+	}
+
+	void HandleMediaPlaylistCurrentItemChanged(MediaPlaybackList sender, CurrentMediaPlaybackItemChangedEventArgs args)
+	{
+		if (Player is null)
+		{
+			return;
+		}
+
+		MainThread.BeginInvokeOnMainThread(() =>
+		{
+			var mediaPlaybackList = Player.Source as MediaPlaybackList;
+			if (mediaPlaybackList != null)
+			{
+				var oldIndex = mediaPlaybackList.Items.IndexOf(args.OldItem);
+				var newIndex = mediaPlaybackList.Items.IndexOf(args.NewItem);
+				var arg = new MediaPlaylistIndexChangedEventArgs(oldIndex, newIndex);
+
+				MediaElement?.PlaylistIndexChanged(arg);
+			}
+		});
 	}
 }

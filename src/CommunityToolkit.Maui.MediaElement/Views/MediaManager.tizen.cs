@@ -100,6 +100,11 @@ public partial class MediaManager : IDisposable
 		MediaElement.SeekCompleted();
 	}
 
+	protected virtual async partial Task PlatformMoveTo(int index, CancellationToken token)
+	{
+		throw new NotImplementedException();
+	}
+
 	protected virtual partial void PlatformStop()
 	{
 		if (Player is null)

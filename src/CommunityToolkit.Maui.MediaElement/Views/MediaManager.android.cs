@@ -21,6 +21,7 @@ using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Media.Services;
 using CommunityToolkit.Maui.Views;
 using Microsoft.Extensions.Logging;
+using static CommunityToolkit.Maui.Primitives.AndroidPrimitives;
 
 namespace CommunityToolkit.Maui.Core.Views;
 
@@ -29,6 +30,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 	static readonly HttpClient client = new();
 
 	readonly SemaphoreSlim seekToSemaphoreSlim = new(1, 1);
+	readonly SemaphoreSlim moveToSemaphoreSlim = new(1, 1);
 
 	Task? checkPermissionsTask;
 	CancellationTokenSource checkPermissionSourceToken = new();
@@ -37,6 +39,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 	float volumeBeforeMute = 1;
 	MediaControllerCompat? mediaControllerCompat;
 	TaskCompletionSource? seekToTaskCompletionSource;
+	TaskCompletionSource? moveToTaskCompletionSource;
 	MediaSessionConnector? mediaSessionConnector;
 	MediaSessionCompat? mediaSession;
 	UIUpdateReceiver? uiUpdateReceiver;
@@ -366,6 +369,36 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 		}
 	}
 
+	protected virtual async partial Task PlatformMoveTo(int index, CancellationToken token)
+	{
+		if (Player is null)
+		{
+			throw new InvalidOperationException($"{nameof(IExoPlayer)} is not yet initialized");
+		}
+
+		if (MediaElement.Source is not PlaylistMediaSource)
+		{
+			return;
+		}
+
+		await moveToSemaphoreSlim.WaitAsync(token);
+
+		moveToTaskCompletionSource = new();
+
+		try
+		{
+			Player.SeekTo(index, 0);
+
+			// Here, we don't want to throw an exception
+			// and to keep the execution on the thread that called this method
+			await moveToTaskCompletionSource.Task.WaitAsync(TimeSpan.FromMinutes(2), token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+		}
+		finally
+		{
+			moveToSemaphoreSlim.Release();
+		}
+	}
+
 	protected virtual partial void PlatformStop()
 	{
 		if (Player is null || MediaElement.Source is null)
@@ -400,42 +433,50 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 
 			return;
 		}
+		if (MediaElement.Source is PlaylistMediaSource mediaSource)
+		{
+			if (mediaSource.Sources is null || mediaSource.Sources.Count == 0)
+			{
+				Player.ClearMediaItems();
+				MediaElement.Duration = TimeSpan.Zero;
+				MediaElement.CurrentStateChanged(MediaElementState.None);
+
+				return;
+			}
+		}
 
 		MediaElement.CurrentStateChanged(MediaElementState.Opening);
 
 		Player.PlayWhenReady = MediaElement.ShouldAutoPlay;
 
-		if (MediaElement.Source is UriMediaSource uriMediaSource)
+		if (MediaElement.Source is PlaylistMediaSource playlistMediaSource)
 		{
-			var uri = uriMediaSource.Uri;
-			if (!string.IsNullOrWhiteSpace(uri?.AbsoluteUri))
-			{
-				Player.SetMediaItem(MediaItem.FromUri(uri.AbsoluteUri));
+			if (playlistMediaSource.Sources is not null) {
+
+				/* Need to use AddMediaItems instead of this but that hasn't been exposed and the MediaSourceFactory
+				 * isn't exposed to create media sources to give to the SetMediaSources method */
+				Player.ClearMediaItems();
+				foreach (var playlistItem in playlistMediaSource.Sources)
+				{
+					var mediaItem = PlatformCreateMediaItem(playlistItem);
+					if (mediaItem != null)
+					{
+						Player.AddMediaItem(mediaItem);
+					}
+				}
+				// Temporary for testing (maybe this needs exposing on MediaElement interface ultimately)
+				Player.PauseAtEndOfMediaItems = true;
 				Player.Prepare();
 
 				hasSetSource = true;
 			}
-		}
-		else if (MediaElement.Source is FileMediaSource fileMediaSource)
-		{
-			var filePath = fileMediaSource.Path;
-			if (!string.IsNullOrWhiteSpace(filePath))
-			{
-				Player.SetMediaItem(MediaItem.FromUri(filePath));
-				Player.Prepare();
 
-				hasSetSource = true;
-			}
-		}
-		else if (MediaElement.Source is ResourceMediaSource resourceMediaSource)
+		} else
 		{
-			var package = PlayerView?.Context?.PackageName ?? "";
-			var path = resourceMediaSource.Path;
-			if (!string.IsNullOrWhiteSpace(path))
+			var mediaItem = PlatformCreateMediaItem(MediaElement.Source);
+			if (mediaItem != null)
 			{
-				var assetFilePath = $"asset://{package}{System.IO.Path.PathSeparator}{path}";
-
-				Player.SetMediaItem(MediaItem.FromUri(assetFilePath));
+				Player.SetMediaItem(mediaItem);
 				Player.Prepare();
 
 				hasSetSource = true;
@@ -446,6 +487,38 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 		{
 			MediaElement.MediaOpened();
 		}
+	}
+
+	MediaItem? PlatformCreateMediaItem(MediaSource source)
+	{
+		if (source is UriMediaSource uriMediaSource)
+		{
+			var uri = uriMediaSource.Uri;
+			if (!string.IsNullOrWhiteSpace(uri?.AbsoluteUri))
+			{
+				return MediaItem.FromUri(uri.AbsoluteUri);
+			}
+		}
+		else if (source is FileMediaSource fileMediaSource)
+		{
+			var filePath = fileMediaSource.Path;
+			if (!string.IsNullOrWhiteSpace(filePath))
+			{
+				return MediaItem.FromUri(filePath);
+			}
+		}
+		else if (source is ResourceMediaSource resourceMediaSource)
+		{
+			var package = PlayerView?.Context?.PackageName ?? "";
+			var path = resourceMediaSource.Path;
+			if (!string.IsNullOrWhiteSpace(path))
+			{
+				var assetFilePath = $"asset://{package}{System.IO.Path.PathSeparator}{path}";
+				return MediaItem.FromUri(assetFilePath);
+			}
+		}
+
+		return null;
 	}
 
 	protected virtual partial void PlatformUpdateAspect()
@@ -710,6 +783,45 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 		LocalBroadcastManager.GetInstance(Platform.AppContext).SendBroadcast(intent);
 	}
 
+	/* This stuff is horrible right now and should be treated as playing around code, it's difficult to identify
+	 * what is a genuine playlist transition during playback as opposed to just a playlist load event. It's also difficult
+	 * to identify the last played track to provide the old and new indexes in the same manner as the Windows implementation.
+	 * Fingers crossed it will be easier after using the new Media3 version */
+	int? lastPlaylistIndex = null;
+	public void OnMediaItemTransition(MediaItem? mediaItem, int reason)
+	{
+		if (Player is null)
+		{
+			return;
+		}
+
+		MainThread.BeginInvokeOnMainThread(() =>
+		{
+			if (reason == (int)MediaItemTransitionReason.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
+			{
+				var oldIndex = lastPlaylistIndex;
+				var newIndex = lastPlaylistIndex = Player.CurrentMediaItemIndex;
+				var arg = new MediaPlaylistIndexChangedEventArgs(oldIndex is not null ? (int)oldIndex : -1, newIndex is not null ? (int)newIndex : -1);
+
+				MediaElement?.PlaylistIndexChanged(arg);
+			}
+
+			if (reason == (int)MediaItemTransitionReason.MEDIA_ITEM_TRANSITION_REASON_SEEK)
+			{
+				var oldIndex = lastPlaylistIndex;
+				var newIndex = lastPlaylistIndex = Player.CurrentMediaItemIndex;
+				var arg = new MediaPlaylistIndexChangedEventArgs(oldIndex is not null ? (int)oldIndex : -1, newIndex is not null ? (int)newIndex : -1);
+
+				MediaElement?.PlaylistIndexChanged(arg);
+			}
+
+			if (reason == (int)MediaItemTransitionReason.MEDIA_ITEM_TRANSITION_REASON_REPEAT || reason == (int)MediaItemTransitionReason.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+			{
+				// The other reasons, what to do with those?
+			}
+		});
+	}
+
 	public void OnVideoSizeChanged(VideoSize? videoSize)
 	{
 		MediaElement.MediaWidth = videoSize?.Width ?? 0;
@@ -730,7 +842,6 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 	public void OnIsPlayingChanged(bool isPlaying) { }
 	public void OnLoadingChanged(bool isLoading) { }
 	public void OnMaxSeekToPreviousPositionChanged(long maxSeekToPreviousPositionMs) { }
-	public void OnMediaItemTransition(MediaItem? mediaItem, int transition) { }
 	public void OnMediaMetadataChanged(MediaMetadata? mediaMetadata) { }
 	public void OnMetadata(Metadata? metadata) { }
 	public void OnPlaybackSuppressionReasonChanged(int playbackSuppressionReason) { }
