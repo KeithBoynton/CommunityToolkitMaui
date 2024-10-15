@@ -21,6 +21,11 @@ public sealed class PlaylistMediaSource : MediaSource
 		set => SetValue(SourcesProperty, value);
 	}
 
+	/// <summary>
+	/// Gets or sets the starting index of the playlist.
+	/// </summary>
+	public int StartIndex;
+
 	static void OnPlaylistSourcesChanged(BindableObject bindable, object oldValue, object newValue) =>
 		((PlaylistMediaSource)bindable).OnSourceChanged();
 }

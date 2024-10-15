@@ -399,6 +399,16 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 		}
 	}
 
+	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
+	{
+		throw new NotImplementedException();
+	}
+
+	protected virtual partial Task PlatformMoveNext(CancellationToken token)
+	{
+		throw new NotImplementedException();
+	}
+
 	protected virtual partial void PlatformStop()
 	{
 		if (Player is null || MediaElement.Source is null)

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Core.Views;
 using CommunityToolkit.Maui.Views;
@@ -101,6 +103,16 @@ public partial class MediaManager : IDisposable
 	}
 
 	protected virtual async partial Task PlatformMoveTo(int index, CancellationToken token)
+	{
+		throw new NotImplementedException();
+	}
+
+	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
+	{
+		throw new NotImplementedException();
+	}
+
+	protected virtual partial Task PlatformMoveNext(CancellationToken token)
 	{
 		throw new NotImplementedException();
 	}

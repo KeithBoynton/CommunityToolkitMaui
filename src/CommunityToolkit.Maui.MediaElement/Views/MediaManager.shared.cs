@@ -112,6 +112,24 @@ public partial class MediaManager
 	}
 
 	/// <summary>
+	/// Invokes the move previous operation on the platform element.
+	/// </summary>
+	/// <param name="token"><see cref="CancellationToken"/> ></param>
+	public Task MovePrevious(CancellationToken token = default)
+	{
+		return PlatformMovePrevious(token);
+	}
+
+	/// <summary>
+	/// Invokes the move next operation on the platform element.
+	/// </summary>
+	/// <param name="token"><see cref="CancellationToken"/> ></param>
+	public Task MoveNext(CancellationToken token = default)
+	{
+		return PlatformMoveNext(token);
+	}
+
+	/// <summary>
 	/// Invokes the stop operation on the platform element.
 	/// </summary>
 	public void Stop()
@@ -217,6 +235,18 @@ public partial class MediaManager
 	protected virtual partial Task PlatformMoveTo(int index, CancellationToken token);
 
 	/// <summary>
+	/// Invokes the platform move previous functionality and moves to the previous index.
+	/// </summary>
+	/// <param name="token"><see cref="CancellationToken"/></param>
+	protected virtual partial Task PlatformMovePrevious(CancellationToken token);
+
+	/// <summary>
+	/// Invokes the platform move next functionality and moves to the next index.
+	/// </summary>
+	/// <param name="token"><see cref="CancellationToken"/></param>
+	protected virtual partial Task PlatformMoveNext(CancellationToken token);
+
+	/// <summary>
 	/// Invokes the platform stop functionality and stops media playback.
 	/// </summary>
 	protected virtual partial void PlatformStop();
@@ -277,6 +307,16 @@ partial class MediaManager
 		return Task.CompletedTask;
 	}
 	protected virtual partial Task PlatformMoveTo(int index, CancellationToken token)
+	{
+		token.ThrowIfCancellationRequested();
+		return Task.CompletedTask;
+	}
+	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
+	{
+		token.ThrowIfCancellationRequested();
+		return Task.CompletedTask;
+	}
+	protected virtual partial Task PlatformMoveNext(CancellationToken token)
 	{
 		token.ThrowIfCancellationRequested();
 		return Task.CompletedTask;

@@ -43,6 +43,8 @@ public partial class MediaElementHandler
 		[nameof(MediaElement.PauseRequested)] = MapPauseRequested,
 		[nameof(MediaElement.SeekRequested)] = MapSeekRequested,
 		[nameof(MediaElement.MoveToRequested)] = MapMoveToRequested,
+		[nameof(MediaElement.MovePreviousRequested)] = MapMovePreviousRequested,
+		[nameof(MediaElement.MoveNextRequested)] = MapMoveNextRequested,
 		[nameof(MediaElement.StopRequested)] = MapStopRequested
 	};
 
@@ -197,7 +199,7 @@ public partial class MediaElementHandler
 	}
 
 	/// <summary>
-	/// Maps the seek operation request between the abstract <see cref="MediaElement"/> and platform counterpart.
+	/// Maps the move to operation request between the abstract <see cref="MediaElement"/> and platform counterpart.
 	/// </summary>
 	/// <param name="handler">The associated handler.</param>
 	/// <param name="mediaElement">The associated <see cref="MediaElement"/> instance.</param>
@@ -211,6 +213,34 @@ public partial class MediaElementHandler
 		await (handler.mediaManager?.MoveTo(moveToArgs.RequestedIndex, CancellationToken.None) ?? Task.CompletedTask);
 
 		((IMediaElement)mediaElement).MoveToCompletedTCS.TrySetResult();
+	}
+
+	/// <summary>
+	/// Maps the move previous operation request between the abstract <see cref="MediaElement"/> and platform counterpart.
+	/// </summary>
+	/// <param name="handler">The associated handler.</param>
+	/// <param name="mediaElement">The associated <see cref="MediaElement"/> instance.</param>
+	/// <param name="args">The associated event arguments for this request.</param>
+	/// <remarks><paramref name="args"/> is not used.</remarks>
+	public static async void MapMovePreviousRequested(MediaElementHandler handler, MediaElement mediaElement, object? args)
+	{
+		await (handler.mediaManager?.MovePrevious(CancellationToken.None) ?? Task.CompletedTask);
+
+		((IMediaElement)mediaElement).MovePreviousCompletedTCS.TrySetResult();
+	}
+
+	/// <summary>
+	/// Maps the move next operation request between the abstract <see cref="MediaElement"/> and platform counterpart.
+	/// </summary>
+	/// <param name="handler">The associated handler.</param>
+	/// <param name="mediaElement">The associated <see cref="MediaElement"/> instance.</param>
+	/// <param name="args">The associated event arguments for this request.</param>
+	/// <remarks><paramref name="args"/> is not used.</remarks>
+	public static async void MapMoveNextRequested(MediaElementHandler handler, MediaElement mediaElement, object? args)
+	{
+		await (handler.mediaManager?.MoveNext(CancellationToken.None) ?? Task.CompletedTask);
+
+		((IMediaElement)mediaElement).MoveNextCompletedTCS.TrySetResult();
 	}
 
 	/// <summary>

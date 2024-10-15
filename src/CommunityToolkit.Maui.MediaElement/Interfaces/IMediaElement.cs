@@ -147,6 +147,20 @@ public interface IMediaElement : IView, IAsynchronousMediaElementHandler
 	Task MoveTo(int index, CancellationToken token = default);
 
 	/// <summary>
+	/// Move to the previous index in the current playlist.
+	/// </summary>
+	/// <param name="token"><see cref="CancellationToken"/>.</param>
+	/// <remarks>If previous is outside of the range of the current playlist, nothing will happen.</remarks>
+	Task MovePrevious(CancellationToken token = default);
+
+	/// <summary>
+	/// Move to the next index in the current playlist.
+	/// </summary>
+	/// <param name="token"><see cref="CancellationToken"/>.</param>
+	/// <remarks>If next is outside of the range of the current playlist, nothing will happen.</remarks>
+	Task MoveNext(CancellationToken token = default);
+
+	/// <summary>
 	/// Seek to a specific position in the currently playing media.
 	/// </summary>
 	/// <param name="position">The requested position to seek to.</param>

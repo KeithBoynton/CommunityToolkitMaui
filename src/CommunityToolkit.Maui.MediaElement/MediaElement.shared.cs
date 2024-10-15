@@ -123,11 +123,15 @@ public class MediaElement : View, IMediaElement, IDisposable
 	readonly WeakEventManager eventManager = new();
 	readonly SemaphoreSlim seekToSemaphoreSlim = new(1, 1);
 	readonly SemaphoreSlim moveToSemaphoreSlim = new(1, 1);
+	readonly SemaphoreSlim movePreviousSemaphoreSlim = new(1, 1);
+	readonly SemaphoreSlim moveNextSemaphoreSlim = new(1, 1);
 
 	bool isDisposed;
 	IDispatcherTimer? timer;
 	TaskCompletionSource seekCompletedTaskCompletionSource = new();
 	TaskCompletionSource moveToCompletedTaskCompletionSource = new();
+	TaskCompletionSource movePreviousCompletedTaskCompletionSource = new();
+	TaskCompletionSource moveNextCompletedTaskCompletionSource = new();
 
 	/// <inheritdoc cref="IMediaElement.MediaEnded"/>
 	public event EventHandler MediaEnded
@@ -209,6 +213,18 @@ public class MediaElement : View, IMediaElement, IDisposable
 	}
 
 	internal event EventHandler<PlaylistMoveToRequestedEventArgs> MoveToRequested
+	{
+		add => eventManager.AddEventHandler(value);
+		remove => eventManager.RemoveEventHandler(value);
+	}
+
+	internal event EventHandler MovePreviousRequested
+	{
+		add => eventManager.AddEventHandler(value);
+		remove => eventManager.RemoveEventHandler(value);
+	}
+
+	internal event EventHandler MoveNextRequested
 	{
 		add => eventManager.AddEventHandler(value);
 		remove => eventManager.RemoveEventHandler(value);
@@ -428,6 +444,8 @@ public class MediaElement : View, IMediaElement, IDisposable
 	/// <inheritdoc/>
 	TaskCompletionSource IAsynchronousMediaElementHandler.SeekCompletedTCS => seekCompletedTaskCompletionSource;
 	TaskCompletionSource IAsynchronousMediaElementHandler.MoveToCompletedTCS => moveToCompletedTaskCompletionSource;
+	TaskCompletionSource IAsynchronousMediaElementHandler.MovePreviousCompletedTCS => movePreviousCompletedTaskCompletionSource;
+	TaskCompletionSource IAsynchronousMediaElementHandler.MoveNextCompletedTCS => moveNextCompletedTaskCompletionSource;
 
 	/// <inheritdoc/>
 	public void Dispose()
@@ -466,6 +484,42 @@ public class MediaElement : View, IMediaElement, IDisposable
 		{
 			moveToCompletedTaskCompletionSource = new();
 			moveToSemaphoreSlim.Release();
+		}
+	}
+
+	/// <inheritdoc cref="IMediaElement.MovePrevious"/>
+	public async Task MovePrevious(CancellationToken token = default)
+	{
+		await movePreviousSemaphoreSlim.WaitAsync(token);
+
+		try
+		{
+			Handler?.Invoke(nameof(MovePreviousRequested));
+
+			await movePreviousCompletedTaskCompletionSource.Task.WaitAsync(token);
+		}
+		finally
+		{
+			movePreviousCompletedTaskCompletionSource = new();
+			movePreviousSemaphoreSlim.Release();
+		}
+	}
+
+	/// <inheritdoc cref="IMediaElement.MoveNext"/>
+	public async Task MoveNext(CancellationToken token = default)
+	{
+		await moveNextSemaphoreSlim.WaitAsync(token);
+
+		try
+		{
+			Handler?.Invoke(nameof(MoveNextRequested));
+
+			await moveNextCompletedTaskCompletionSource.Task.WaitAsync(token);
+		}
+		finally
+		{
+			moveNextCompletedTaskCompletionSource = new();
+			moveNextSemaphoreSlim.Release();
 		}
 	}
 
@@ -539,6 +593,8 @@ public class MediaElement : View, IMediaElement, IDisposable
 			ClearTimer();
 			seekToSemaphoreSlim.Dispose();
 			moveToSemaphoreSlim.Dispose();
+			movePreviousSemaphoreSlim.Dispose();
+			moveNextSemaphoreSlim.Dispose();
 		}
 
 		isDisposed = true;

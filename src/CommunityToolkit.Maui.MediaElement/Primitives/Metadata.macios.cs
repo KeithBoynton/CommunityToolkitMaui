@@ -23,6 +23,7 @@ class Metadata
 	};
 
 	readonly PlatformMediaElement player;
+	IMediaElement? mediaElement;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="Metadata"/> class.
@@ -52,6 +53,12 @@ class Metadata
 
 		commandCenter.SeekForwardCommand.Enabled = false;
 		commandCenter.SeekForwardCommand.AddTarget(SeekForwardCommand);
+
+		commandCenter.PreviousTrackCommand.Enabled = false;
+		commandCenter.PreviousTrackCommand.AddTarget(PreviousTrackCommand);
+
+		commandCenter.NextTrackCommand.Enabled = false;
+		commandCenter.NextTrackCommand.AddTarget(NextTrackCommand);
 	}
 
 	/// <summary>
@@ -66,6 +73,17 @@ class Metadata
 	public static void ClearNowPlaying() => MPNowPlayingInfoCenter.DefaultCenter.NowPlaying = nowPlayingInfoDefault;
 
 	/// <summary>
+	/// Sets the enabled state for the previous and next track buttons.
+	/// </summary>
+	/// <param name="canPrevious"></param>
+	/// <param name="canNext"></param>
+	public void SetPreviousNextTrackButtonStates(bool canPrevious, bool canNext)
+	{
+		MPRemoteCommandCenter.Shared.PreviousTrackCommand.Enabled = canPrevious;
+		MPRemoteCommandCenter.Shared.NextTrackCommand.Enabled = canNext;
+	}
+
+	/// <summary>
 	/// Sets the data for the currently playing media from the media element.
 	/// </summary>
 	/// <param name="playerItem"></param>
@@ -75,8 +93,11 @@ class Metadata
 		if (mediaElement is null)
 		{
 			Metadata.ClearNowPlaying();
+			this.mediaElement = null;
 			return;
 		}
+
+		this.mediaElement = mediaElement;
 
 		NowPlayingInfo.Title = mediaElement.MetadataTitle;
 		NowPlayingInfo.Artist = mediaElement.MetadataArtist;
@@ -137,6 +158,28 @@ class Metadata
 
 		var seekTime = player.CurrentTime + CMTime.FromSeconds(10, 1);
 		player.Seek(seekTime);
+		return MPRemoteCommandHandlerStatus.Success;
+	}
+
+	MPRemoteCommandHandlerStatus PreviousTrackCommand(MPRemoteCommandEvent? commandEvent)
+	{
+		if (commandEvent is null)
+		{
+			return MPRemoteCommandHandlerStatus.CommandFailed;
+		}
+
+		mediaElement?.MovePrevious();
+		return MPRemoteCommandHandlerStatus.Success;
+	}
+
+	MPRemoteCommandHandlerStatus NextTrackCommand(MPRemoteCommandEvent? commandEvent)
+	{
+		if (commandEvent is null)
+		{
+			return MPRemoteCommandHandlerStatus.CommandFailed;
+		}
+
+		mediaElement?.MoveNext();
 		return MPRemoteCommandHandlerStatus.Success;
 	}
 

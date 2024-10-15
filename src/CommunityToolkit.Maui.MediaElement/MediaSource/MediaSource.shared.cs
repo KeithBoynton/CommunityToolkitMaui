@@ -86,9 +86,10 @@ public abstract class MediaSource : Element
 	/// Creates a <see cref="PlaylistMediaSource"/> from a list of MediaSources.
 	/// </summary>
 	/// <param name="sources">IList of MediaSource.</param>
+	/// <param name="startIndex">int index to start playback from.</param>
 	/// <returns>A <see cref="PlaylistMediaSource"/> instance.</returns>
 	/// <exception cref="ArgumentException">Thrown if <paramref name="sources"/> is not an IList of MediaSource or is empty.</exception>
-	public static MediaSource? FromList(IList<MediaSource>? sources)
+	public static MediaSource? FromList(IList<MediaSource>? sources, int startIndex = 0)
 	{
 		if (sources is null)
 		{
@@ -100,7 +101,7 @@ public abstract class MediaSource : Element
 			throw new ArgumentException("sources must be a non empty IList of MediaSource", nameof(sources));
 		}
 
-		return new PlaylistMediaSource { Sources = sources };
+		return new PlaylistMediaSource { Sources = sources, StartIndex = startIndex };
 	}
 
 	/// <summary>

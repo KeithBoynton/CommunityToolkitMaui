@@ -1,4 +1,7 @@
+using System;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
 using Microsoft.Extensions.Logging;
@@ -132,6 +135,16 @@ partial class MediaManager : IDisposable
 				}
 			}
 		});
+	}
+
+	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
+	{
+		throw new NotImplementedException();
+	}
+
+	protected virtual partial Task PlatformMoveNext(CancellationToken token)
+	{
+		throw new NotImplementedException();
 	}
 
 	protected virtual partial void PlatformStop()
