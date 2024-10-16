@@ -1,7 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
 using Microsoft.Extensions.Logging;
@@ -11,7 +8,6 @@ using Windows.Media;
 using Windows.Media.Playback;
 using Windows.Storage;
 using Windows.System.Display;
-using Page = Microsoft.Maui.Controls.Page;
 using ParentWindow = CommunityToolkit.Maui.Extensions.PageExtensions.ParentWindow;
 using WindowsMediaElement = Windows.Media.Playback.MediaPlayer;
 using WinMediaSource = Windows.Media.Core.MediaSource;
@@ -137,14 +133,44 @@ partial class MediaManager : IDisposable
 		});
 	}
 
-	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
+	protected virtual async partial Task PlatformMovePrevious(CancellationToken token)
 	{
-		throw new NotImplementedException();
+		if (Player is null)
+		{
+			return;
+		}
+
+		await MainThread.InvokeOnMainThreadAsync(() =>
+		{
+			if (Player.Source is MediaPlaybackList mediaPlaybackList)
+			{
+				if (mediaPlaybackList.Items != null && mediaPlaybackList.CurrentItemIndex > 0)
+				{
+					token.ThrowIfCancellationRequested();
+					mediaPlaybackList.MovePrevious();
+				}
+			}
+		});
 	}
 
-	protected virtual partial Task PlatformMoveNext(CancellationToken token)
+	protected virtual async partial Task PlatformMoveNext(CancellationToken token)
 	{
-		throw new NotImplementedException();
+		if (Player is null)
+		{
+			return;
+		}
+
+		await MainThread.InvokeOnMainThreadAsync(() =>
+		{
+			if (Player.Source is MediaPlaybackList mediaPlaybackList)
+			{
+				if (mediaPlaybackList.Items != null && mediaPlaybackList.CurrentItemIndex < (mediaPlaybackList.Items.Count - 1))
+				{
+					token.ThrowIfCancellationRequested();
+					mediaPlaybackList.MoveNext();
+				}
+			}
+		});
 	}
 
 	protected virtual partial void PlatformStop()
