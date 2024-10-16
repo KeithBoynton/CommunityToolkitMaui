@@ -353,6 +353,11 @@ partial class MediaManager : IDisposable
 					mediaPlaybackList.Items.Add(mpbItem);
 				}
 
+				if (playlistMediaSource.StartIndex < mediaPlaybackList.Items.Count)
+				{
+					mediaPlaybackList.StartingItem = mediaPlaybackList.Items[playlistMediaSource.StartIndex];
+				}
+
 				return mediaPlaybackList;
 			}
 		}
