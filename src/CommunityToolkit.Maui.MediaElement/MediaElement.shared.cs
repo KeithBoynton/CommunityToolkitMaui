@@ -230,6 +230,12 @@ public class MediaElement : View, IMediaElement, IDisposable
 		remove => eventManager.RemoveEventHandler(value);
 	}
 
+	internal event EventHandler AddMediaToPlaylistRequested
+	{
+		add => eventManager.AddEventHandler(value);
+		remove => eventManager.RemoveEventHandler(value);
+	}
+
 	internal event EventHandler StopRequested
 	{
 		add => eventManager.AddEventHandler(value);
@@ -521,6 +527,13 @@ public class MediaElement : View, IMediaElement, IDisposable
 			moveNextCompletedTaskCompletionSource = new();
 			moveNextSemaphoreSlim.Release();
 		}
+	}
+
+	/// <inheritdoc cref="IMediaElement.AddMediaToPlaylist"/>
+	public void AddMediaToPlaylist(MediaSource media, int? index = null)
+	{
+		AddMediaToPlaylistRequestedEventArgs args = new(media, index);
+		Handler?.Invoke(nameof(AddMediaToPlaylistRequested), args);
 	}
 
 	/// <inheritdoc cref="IMediaElement.SeekTo(TimeSpan, CancellationToken)"/>

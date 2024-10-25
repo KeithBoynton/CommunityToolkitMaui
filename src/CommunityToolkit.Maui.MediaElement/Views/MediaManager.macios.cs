@@ -206,6 +206,11 @@ public partial class MediaManager : IDisposable
 		return Task.CompletedTask;
 	}
 
+	protected virtual partial Task PlatformAddMediaToPlaylist(MediaSource media, int? index)
+	{
+		throw new NotImplementedException();
+	}
+
 	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
 	{
 		if (playlistIndex > 0)

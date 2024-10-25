@@ -6,6 +6,8 @@ global using PlatformMediaElement = Com.Google.Android.Exoplayer2.IExoPlayer;
 global using PlatformMediaElement = AVFoundation.AVPlayer;
 #elif WINDOWS
 global using PlatformMediaElement = Microsoft.UI.Xaml.Controls.MediaPlayerElement;
+using CommunityToolkit.Maui.Views;
+
 #elif TIZEN
 global using PlatformMediaElement = CommunityToolkit.Maui.Core.Views.TizenPlayer;
 #endif
@@ -130,6 +132,16 @@ public partial class MediaManager
 	}
 
 	/// <summary>
+	/// Invokes the add media to playlist operation on the platform element.
+	/// </summary>
+	/// <param name="media">The media to add</param>
+	/// <param name="index">The index position to add the media at</param>
+	public Task AddMediaToPlaylist(CommunityToolkit.Maui.Views.MediaSource media, int? index)
+	{
+		return PlatformAddMediaToPlaylist(media, index);
+	}
+
+	/// <summary>
 	/// Invokes the stop operation on the platform element.
 	/// </summary>
 	public void Stop()
@@ -247,6 +259,13 @@ public partial class MediaManager
 	protected virtual partial Task PlatformMoveNext(CancellationToken token);
 
 	/// <summary>
+	/// Invokes the platform add to playlist functionality.
+	/// </summary>
+	/// <param name="media">The media to add</param>
+	/// <param name="index">The index position to add at</param>
+	protected virtual partial Task PlatformAddMediaToPlaylist(CommunityToolkit.Maui.Views.MediaSource media, int? index);
+
+	/// <summary>
 	/// Invokes the platform stop functionality and stops media playback.
 	/// </summary>
 	protected virtual partial void PlatformStop();
@@ -309,6 +328,10 @@ partial class MediaManager
 	protected virtual partial Task PlatformMoveTo(int index, CancellationToken token)
 	{
 		token.ThrowIfCancellationRequested();
+		return Task.CompletedTask;
+	}
+	protected virtual partial Task PlatformAddMediaToPlaylist(CommunityToolkit.Maui.Views.MediaSource media, int? index)
+	{
 		return Task.CompletedTask;
 	}
 	protected virtual partial Task PlatformMovePrevious(CancellationToken token)

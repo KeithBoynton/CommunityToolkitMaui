@@ -45,6 +45,7 @@ public partial class MediaElementHandler
 		[nameof(MediaElement.MoveToRequested)] = MapMoveToRequested,
 		[nameof(MediaElement.MovePreviousRequested)] = MapMovePreviousRequested,
 		[nameof(MediaElement.MoveNextRequested)] = MapMoveNextRequested,
+		[nameof(MediaElement.AddMediaToPlaylistRequested)] = MapAddMediaToPlaylistRequested,
 		[nameof(MediaElement.StopRequested)] = MapStopRequested
 	};
 
@@ -241,6 +242,20 @@ public partial class MediaElementHandler
 		await (handler.mediaManager?.MoveNext(CancellationToken.None) ?? Task.CompletedTask);
 
 		((IMediaElement)mediaElement).MoveNextCompletedTCS.TrySetResult();
+	}
+
+	/// <summary>
+	/// Maps the add media to playlist operation request between the abstract <see cref="MediaElement"/> and platform counterpart.
+	/// </summary>
+	/// <param name="handler">The associated handler.</param>
+	/// <param name="mediaElement">The associated <see cref="MediaElement"/> instance.</param>
+	/// <param name="args">The associated event arguments for this request.</param>
+	public static void MapAddMediaToPlaylistRequested(MediaElementHandler handler, MediaElement mediaElement, object? args)
+	{
+		ArgumentNullException.ThrowIfNull(args);
+
+		var addMediaToPlaylistArgs = (AddMediaToPlaylistRequestedEventArgs)args;
+		handler.mediaManager?.AddMediaToPlaylist(addMediaToPlaylistArgs.RequestedMedia, addMediaToPlaylistArgs.RequestedIndex);
 	}
 
 	/// <summary>

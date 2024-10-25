@@ -399,6 +399,11 @@ public partial class MediaManager : Java.Lang.Object, IPlayer.IListener
 		}
 	}
 
+	protected virtual partial Task PlatformAddMediaToPlaylist(MediaSource media, int? index)
+	{
+		throw new NotImplementedException();
+	}
+
 	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
 	{
 		throw new NotImplementedException();

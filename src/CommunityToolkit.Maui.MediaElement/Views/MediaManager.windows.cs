@@ -133,6 +133,35 @@ partial class MediaManager : IDisposable
 		});
 	}
 
+	protected virtual async partial Task PlatformAddMediaToPlaylist(MediaSource media, int? index)
+	{
+		if (Player is null)
+		{
+			return;
+		}
+
+		await MainThread.InvokeOnMainThreadAsync(async() =>
+		{
+			if (Player.Source is MediaPlaybackList mediaPlaybackList)
+			{
+				if (mediaPlaybackList.Items != null)
+				{
+					var mediaItem = new MediaPlaybackItem((WinMediaSource)await PlatformCreateMediaSource(media));
+					if (mediaItem is not null) {
+						// If the index isn't specified or it's outside the existing playlist range
+						if (index is null || index < 0 || index >= mediaPlaybackList.Items.Count)
+						{
+							mediaPlaybackList.Items.Add(mediaItem);
+						} else
+						{
+							mediaPlaybackList.Items.Insert((int)index, mediaItem);
+						}
+					}
+				}
+			}
+		});
+	}
+
 	protected virtual async partial Task PlatformMovePrevious(CancellationToken token)
 	{
 		if (Player is null)
@@ -173,24 +202,27 @@ partial class MediaManager : IDisposable
 		});
 	}
 
-	protected virtual partial void PlatformStop()
+	protected virtual async partial void PlatformStop()
 	{
 		if (Player is null)
 		{
 			return;
 		}
 
-		// There's no Stop method so pause the video and reset its position
-		Player.MediaPlayer.Pause();
-		Player.MediaPlayer.Position = TimeSpan.Zero;
-
-		MediaElement.CurrentStateChanged(MediaElementState.Stopped);
-
-		if (displayActiveRequested)
+		await MainThread.InvokeOnMainThreadAsync(() =>
 		{
-			DisplayRequest.RequestRelease();
-			displayActiveRequested = false;
-		}
+			// There's no Stop method so pause the video and reset its position
+			Player.MediaPlayer.Pause();
+			Player.MediaPlayer.Position = TimeSpan.Zero;
+
+			MediaElement.CurrentStateChanged(MediaElementState.Stopped);
+
+			if (displayActiveRequested)
+			{
+				DisplayRequest.RequestRelease();
+				displayActiveRequested = false;
+			}
+		});
 	}
 
 	protected virtual partial void PlatformUpdateAspect()

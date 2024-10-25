@@ -25,6 +25,7 @@ public partial class MediaElementHandler : ViewHandler<MediaElement, object>
 	public static void MapMoveToRequested(MediaElementHandler handler, MediaElement MediaElement, object? args) => throw new NotImplementedException();
 	public static void MapMovePreviousRequested(MediaElementHandler handler, MediaElement MediaElement, object? args) => throw new NotImplementedException();
 	public static void MapMoveNextRequested(MediaElementHandler handler, MediaElement MediaElement, object? args) => throw new NotImplementedException();
+	public static void MapAddMediaToPlaylistRequested(MediaElementHandler handler, MediaElement MediaElement, object? args) => throw new NotImplementedException();
 	public static void MapStopRequested(MediaElementHandler handler, MediaElement MediaElement, object? args) => throw new NotImplementedException();
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 }

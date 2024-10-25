@@ -161,6 +161,14 @@ public interface IMediaElement : IView, IAsynchronousMediaElementHandler
 	Task MoveNext(CancellationToken token = default);
 
 	/// <summary>
+	/// Adds the specified media element to the current playlist at the specified index.
+	/// </summary>
+	/// <param name="media">The media to add.</param>
+	/// <param name="index">The index position to add it at.</param>
+	/// <remarks>If index is null or outside of the range of the current playlist, it will be added at the end.</remarks>
+	void AddMediaToPlaylist(MediaSource media, int? index);
+
+	/// <summary>
 	/// Seek to a specific position in the currently playing media.
 	/// </summary>
 	/// <param name="position">The requested position to seek to.</param>
