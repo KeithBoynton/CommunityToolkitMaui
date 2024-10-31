@@ -208,7 +208,24 @@ public partial class MediaManager : IDisposable
 
 	protected virtual partial Task PlatformAddMediaToPlaylist(MediaSource media, int? index)
 	{
-		throw new NotImplementedException();
+		if (playlist != null)
+		{
+			var mediaItem = PlatformCreateMediaAsset(media);
+			if (mediaItem is not null)
+			{
+				// If the index isn't specified or it's outside the existing playlist range
+				if (index is null || index < 0 || index >= playlist.Count)
+				{
+					playlist.Add(mediaItem);
+				}
+				else
+				{
+					playlist.Insert((int)index, mediaItem);
+				}
+			}
+		}
+
+		return Task.CompletedTask;
 	}
 
 	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
@@ -287,54 +304,59 @@ public partial class MediaManager : IDisposable
 			}
 		}
 
-		metaData ??= new(Player);
-		Metadata.ClearNowPlaying();
-		PlayerViewController?.ContentOverlayView?.Subviews?.FirstOrDefault()?.RemoveFromSuperview();
-
-		if (MediaElement.Source is PlaylistMediaSource playlistMediaSource)
+		MainThread.BeginInvokeOnMainThread(() =>
 		{
-			if (playlistMediaSource.Sources is not null)
+			metaData ??= new(Player);
+			Metadata.ClearNowPlaying();
+			PlayerViewController?.ContentOverlayView?.Subviews?.FirstOrDefault()?.RemoveFromSuperview();
+
+			if (MediaElement.Source is PlaylistMediaSource playlistMediaSource)
 			{
-				playlist.Clear();
-				foreach (var playlistItem in playlistMediaSource.Sources)
+				if (playlistMediaSource.Sources is not null)
 				{
-					var mediaItem = PlatformCreateMediaAsset(playlistItem);
-					if (mediaItem != null)
+					playlist.Clear();
+					foreach (var playlistItem in playlistMediaSource.Sources)
 					{
-						playlist.Add(mediaItem);
+						var mediaItem = PlatformCreateMediaAsset(playlistItem);
+						if (mediaItem != null)
+						{
+							playlist.Add(mediaItem);
+						}
 					}
+
+					playlistIndex = playlist.Count > 0
+						? playlistMediaSource.StartIndex
+						: null;
+
+					asset = playlistIndex is not null
+						? playlist[(int)playlistIndex]
+						: null;
 				}
 
-				playlistIndex = playlist.Count > 0
-					? playlistMediaSource.StartIndex
-					: null;
+			}
+			else if (MediaElement.Source is not null)
+			{
+				asset = PlatformCreateMediaAsset(MediaElement.Source);
 
-				asset = playlistIndex is not null
-					? playlist[(int)playlistIndex]
+				playlist.Clear();
+				playlistIndex = null;
+
+				PlayerItem = asset is not null
+					? new AVPlayerItem(asset)
 					: null;
 			}
 
-		} else if (MediaElement.Source is not null)
-		{
-			asset = PlatformCreateMediaAsset(MediaElement.Source);
-
-			playlist.Clear();
-			playlistIndex = null;
-
-			PlayerItem = asset is not null
-				? new AVPlayerItem(asset)
-				: null;
-		}
-
-		if (asset is not null)
-		{
-			LoadPlayerItem(asset);
-		} else
-		{
-			playlist.Clear();
-			playlistIndex = null;
-			PlayerItem = null;
-		}
+			if (asset is not null)
+			{
+				LoadPlayerItem(asset);
+			}
+			else
+			{
+				playlist.Clear();
+				playlistIndex = null;
+				PlayerItem = null;
+			}
+		});
 	}
 	void LoadPlayerItem(AVAsset avAsset)
 	{
