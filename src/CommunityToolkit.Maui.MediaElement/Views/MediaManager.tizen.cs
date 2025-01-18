@@ -155,11 +155,11 @@ public partial class MediaManager : IDisposable
 		};
 	}
 
-	protected virtual partial void PlatformUpdateSource()
+	protected virtual partial ValueTask PlatformUpdateSource()
 	{
 		if (Player is null)
 		{
-			return;
+			return ValueTask.CompletedTask;
 		}
 
 		if (Player.State is not PlayerState.Idle)
@@ -175,7 +175,8 @@ public partial class MediaManager : IDisposable
 			MediaElement.MediaWidth = MediaElement.MediaHeight = 0;
 
 			MediaElement.CurrentStateChanged(MediaElementState.None);
-			return;
+			
+			return ValueTask.CompletedTask;
 		}
 
 		MediaElement.CurrentStateChanged(MediaElementState.Opening);
@@ -213,6 +214,8 @@ public partial class MediaManager : IDisposable
 			PreparePlayer();
 			MediaElement.MediaOpened();
 		}
+
+		return ValueTask.CompletedTask;
 	}
 
 	protected virtual partial void PlatformUpdateSpeed()
