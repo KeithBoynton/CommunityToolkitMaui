@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Android.Content;
 using Android.Views;
 using Android.Widget;
@@ -91,6 +92,8 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		{
 			return;
 		}
+
+		Debug.WriteLine($"Player State {playbackState}");
 
 		var newState = playbackState switch
 		{
@@ -404,18 +407,39 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		{
 			if (playlistMediaSource.Sources is not null)
 			{
-
 				/* Need to use AddMediaItems instead of this but that hasn't been exposed and the MediaSourceFactory
 				 * isn't exposed to create media sources to give to the SetMediaSources method */
+				var mediaItems = new List<MediaItem>();
 				foreach (var playlistItem in playlistMediaSource.Sources)
 				{
 					// ConfigureAwait(true) is required to prevent crash on startup
-					var result = await SetPlayerData(playlistItem, cancellationTokenSource.Token).ConfigureAwait(true);
-					var item = result?.Build();
+					//var result = await SetPlayerData(playlistItem, cancellationTokenSource.Token).ConfigureAwait(true);
+					//var item = result?.Build();
+					var item = CreateBasicMediaItem(playlistItem);
 					if (item != null)
 					{
-						Player.AddMediaItem(item);
+						mediaItems.Add(item);
 					}
+				}
+				Player.ClearMediaItems();
+				try
+				{
+					//Player.AddMediaItems(mediaItems);
+					Player.SetMediaItems(mediaItems);
+					//Player.SetMediaItem(mediaItems[0]);
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine($"Exception {ex}");
+				}
+				Player.Prepare();
+				Player.Play();
+				hasSetSource = true;
+
+				if (hasSetSource && Player.PlayerError is null)
+				{
+					MediaElement.MediaOpened();
+					UpdateNotifications();
 				}
 			}
 		}
@@ -681,6 +705,54 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		}
 
 		return mediaItem;
+	}
+
+	MediaItem? CreateBasicMediaItem(MediaSource? mediaSource)
+	{
+		if (mediaSource is null)
+		{
+			return null;
+		}
+
+		switch (mediaSource)
+		{
+			case UriMediaSource uriMediaSource:
+				{
+					var uri = uriMediaSource.Uri;
+					if (uri is not null)
+					{
+						return MediaItem.FromUri(Android.Net.Uri.Parse(uri.ToString()));
+					}
+
+					break;
+				}
+			case FileMediaSource fileMediaSource:
+				{
+					var filePath = fileMediaSource.Path;
+					if (!string.IsNullOrWhiteSpace(filePath))
+					{
+						return MediaItem.FromUri(Android.Net.Uri.Parse(filePath));
+					}
+
+					break;
+				}
+			case ResourceMediaSource resourceMediaSource:
+				{
+					var package = PlayerView?.Context?.PackageName ?? "";
+					var path = resourceMediaSource.Path;
+					if (!string.IsNullOrWhiteSpace(path))
+					{
+						var assetFilePath = $"asset://{package}{Path.PathSeparator}{path}";
+						return MediaItem.FromUri(Android.Net.Uri.Parse(assetFilePath));
+					}
+
+					break;
+				}
+			default:
+				throw new NotSupportedException($"{mediaSource.GetType().FullName} is not yet supported for {nameof(MediaElement.Source)}");
+		}
+
+		return null;
 	}
 
 	async Task<MediaItem.Builder> CreateMediaItem(string url, CancellationToken cancellationToken = default)
