@@ -25,4 +25,7 @@ public enum MediaElementState
 
 	/// <summary>The media failed to open or play.</summary>
 	Failed,
+
+	/// <summary>The media is opened and ready to play.</summary>
+	Opened,
 }

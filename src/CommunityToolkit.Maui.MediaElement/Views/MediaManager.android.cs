@@ -1,12 +1,15 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Android.Content;
+using Android.Nfc;
 using Android.Views;
 using Android.Widget;
 using AndroidX.Media3.Common;
 using AndroidX.Media3.Common.Text;
 using AndroidX.Media3.Common.Util;
 using AndroidX.Media3.ExoPlayer;
+using AndroidX.Media3.ExoPlayer.Source;
 using AndroidX.Media3.Session;
 using AndroidX.Media3.UI;
 using CommunityToolkit.Maui.Core.Primitives;
@@ -93,7 +96,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 			return;
 		}
 
-		Debug.WriteLine($"Player State {playbackState}");
+		Debug.WriteLine($"PlayerState from ExoPlayer [{playbackState}]");
 
 		var newState = playbackState switch
 		{
@@ -104,7 +107,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 				or PlaybackState.StateSkippingToQueueItem
 				or PlaybackState.StatePlaying => playWhenReady
 					? MediaElementState.Playing
-					: MediaElementState.Paused,
+					: mediaOpening ? MediaElementState.Opened : MediaElementState.Paused,
 
 			PlaybackState.StatePaused => MediaElementState.Paused,
 
@@ -121,6 +124,13 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 			_ => MediaElementState.None,
 		};
 
+		// Reset the opening state
+		if (mediaOpening && (newState == MediaElementState.Playing || newState == MediaElementState.Opened))
+		{
+			mediaOpening = false;
+		}
+
+		Debug.WriteLine($"Raising XCTMediaElement CurrentStateChanged [{newState}]");
 		MediaElement.CurrentStateChanged(newState);
 		if (playbackState is readyState)
 		{
@@ -149,6 +159,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		string randomId = Convert.ToBase64String(Guid.NewGuid().ToByteArray())[..8];
 		var mediaSessionWRandomId = new MediaSession.Builder(Platform.AppContext, Player);
 		mediaSessionWRandomId.SetId(randomId);
+		mediaSessionWRandomId.SetCallback(new MediaSessionCallback());
 		session ??= mediaSessionWRandomId.Build() ?? throw new InvalidOperationException("Session cannot be null");
 		ArgumentNullException.ThrowIfNull(session.Id);
 
@@ -170,7 +181,10 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 			return;
 		}
 
+		Debug.WriteLine($"PlaybackState from ExoPlayer [{playbackState}]");
+
 		MediaElementState newState = MediaElement.CurrentState;
+		Debug.WriteLine($"CurrentState of XCTMediaElement {newState}");
 		switch (playbackState)
 		{
 			case bufferState:
@@ -185,6 +199,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 				break;
 		}
 
+		Debug.WriteLine($"Raising XCTMediaElement CurrentStateChanged [{newState}]");
 		MediaElement.CurrentStateChanged(newState);
 	}
 
@@ -337,9 +352,31 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		}
 	}
 
-	protected virtual partial Task PlatformAddMediaToPlaylist(MediaSource media, int? index)
+	protected virtual async partial Task PlatformAddMediaToPlaylist(MediaSource media, int? index)
 	{
-		throw new NotImplementedException();
+		if (Player is null)
+		{
+			return;
+		}
+
+		await MainThread.InvokeOnMainThreadAsync(() =>
+		{
+
+			if (mediaItems is not null)
+			{
+				var mediaItem = CreateBasicMediaItem(media);
+
+				// If the index isn't specified or it's outside the existing playlist range
+				if (index is null || index < 0 || index >= Player.MediaItemCount)
+				{
+					Player.AddMediaItem(mediaItem);
+				}
+				else
+				{
+					Player.AddMediaItem((int)index, mediaItem);
+				}
+			}
+		});
 	}
 
 	protected virtual partial Task PlatformMovePrevious(CancellationToken token)
@@ -364,6 +401,8 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		MediaElement.Position = TimeSpan.Zero;
 	}
 
+	bool mediaOpening = false;
+	List<MediaItem> mediaItems = new List<MediaItem>();
 	protected virtual async partial ValueTask PlatformUpdateSource()
 	{
 		var hasSetSource = false;
@@ -381,6 +420,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		if (MediaElement.Source is null)
 		{
 			Player.ClearMediaItems();
+			mediaItems.Clear();
 			MediaElement.Duration = TimeSpan.Zero;
 			MediaElement.CurrentStateChanged(MediaElementState.None);
 
@@ -392,6 +432,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 			if (mediaSource.Sources is null || mediaSource.Sources.Count == 0)
 			{
 				Player.ClearMediaItems();
+				mediaItems.Clear();
 				MediaElement.Duration = TimeSpan.Zero;
 				MediaElement.CurrentStateChanged(MediaElementState.None);
 
@@ -400,6 +441,7 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		}
 
 		MediaElement.CurrentStateChanged(MediaElementState.Opening);
+		mediaOpening = true;
 		Player.PlayWhenReady = MediaElement.ShouldAutoPlay;
 		cancellationTokenSource ??= new();
 
@@ -407,21 +449,27 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		{
 			if (playlistMediaSource.Sources is not null)
 			{
+				Player.ClearMediaItems();
+				mediaItems.Clear();
+
 				/* Need to use AddMediaItems instead of this but that hasn't been exposed and the MediaSourceFactory
 				 * isn't exposed to create media sources to give to the SetMediaSources method */
-				var mediaItems = new List<MediaItem>();
+				//var mediaItems = new List<MediaItem>();
 				foreach (var playlistItem in playlistMediaSource.Sources)
 				{
 					// ConfigureAwait(true) is required to prevent crash on startup
-					//var result = await SetPlayerData(playlistItem, cancellationTokenSource.Token).ConfigureAwait(true);
-					//var item = result?.Build();
-					var item = CreateBasicMediaItem(playlistItem);
+					var result = await SetPlayerData(playlistItem, cancellationTokenSource.Token).ConfigureAwait(true);
+					var item = result?.Build();
+					//var item = CreateBasicMediaItem(playlistItem);
 					if (item != null)
 					{
+						//mediaItems.Add(item);
+						Player.AddMediaItem(item);
 						mediaItems.Add(item);
 					}
 				}
-				Player.ClearMediaItems();
+
+				/*
 				try
 				{
 					//Player.AddMediaItems(mediaItems);
@@ -432,8 +480,18 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 				{
 					Debug.WriteLine($"Exception {ex}");
 				}
+				*/
+				if (playlistMediaSource.StartIndex > 0 && playlistMediaSource.StartIndex < playlistMediaSource.Sources.Count)
+				{
+					Player.SeekTo(playlistMediaSource.StartIndex, -1);
+				}
+
+				Debug.WriteLine($"PlaylistPosition[{Player.CurrentMediaItemIndex}]");
+
 				Player.Prepare();
-				Player.Play();
+
+				Debug.WriteLine($"PlaylistPosition[{Player.CurrentMediaItemIndex}]");
+				//Player.Play();
 				hasSetSource = true;
 
 				if (hasSetSource && Player.PlayerError is null)
@@ -771,6 +829,49 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		return mediaItem;
 	}
 
+	MediaItem? lastPlayedMedia = null;
+	/// <summary>
+	/// Occurs when ExoPlayer transitions to another media item or starts repeating the same media item.
+	/// </summary>
+	/// <paramref name="mediaItem">The new media item.</paramref>
+	/// <paramref name="reason">The reason why the transition occurred.</paramref>
+	/// <remarks>
+	/// This is part of the <see cref="IPlayerListener"/> implementation.
+	/// While this method does not seem to have any references, it's invoked at runtime.
+	/// </remarks>
+	public void OnMediaItemTransition(MediaItem? mediaItem, int reason)
+	{
+		if (Player is null)
+		{
+			return;
+		}
+
+		if (reason == MediaItemTransitionReason.PlaylistChanged)
+		{
+			if (mediaItem is not null)
+			{
+				lastPlayedMedia = mediaItem;
+			}
+			return;
+		}
+
+		MainThread.BeginInvokeOnMainThread(() =>
+		{
+			if (MediaElement.Source is PlaylistMediaSource mediaSource)
+			{
+				if (mediaSource != null && mediaSource.Sources != null && mediaItem != null)
+				{
+					var oldIndex = lastPlayedMedia == null ? -1 : mediaItems.IndexOf(lastPlayedMedia);
+					var newIndex = mediaItems.IndexOf(mediaItem);
+					var arg = new MediaPlaylistIndexChangedEventArgs(oldIndex, newIndex);
+
+					lastPlayedMedia = mediaItem;
+					MediaElement?.PlaylistIndexChanged(arg);
+				}
+			}
+		});
+	}
+
 	static class PlaybackState
 	{
 		public const int StateBuffering = 6;
@@ -786,5 +887,13 @@ public partial class MediaManager : Java.Lang.Object, IPlayerListener
 		public const int StateSkippingToQueueItem = 11;
 		public const int StateStopped = 1;
 		public const int StateError = 7;
+	}
+
+	static class MediaItemTransitionReason
+	{
+		public const int Repeat = 0;
+		public const int Auto = 1;
+		public const int Seek = 2;
+		public const int PlaylistChanged = 3;
 	}
 }
