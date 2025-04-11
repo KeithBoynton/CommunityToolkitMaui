@@ -399,6 +399,7 @@ public partial class MediaManager : IDisposable
 			if (PlayerItem is not null && PlayerItem.Error is null)
 			{
 				MediaElement.MediaOpened();
+				MediaElement.CurrentStateChanged(MediaElementState.Opened);
 
 				(MediaElement.MediaWidth, MediaElement.MediaHeight) = GetVideoDimensions(PlayerItem);
 
