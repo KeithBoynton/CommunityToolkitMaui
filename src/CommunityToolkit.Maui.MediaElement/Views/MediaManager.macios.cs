@@ -1,4 +1,5 @@
-﻿using AVFoundation;
+﻿using System.Diagnostics;
+using AVFoundation;
 using AVKit;
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
@@ -418,6 +419,7 @@ public partial class MediaManager : IDisposable
 		}
 	}
 
+	CancellationTokenSource? setPosterImageLoadingCanceller = null;
 	void SetPoster()
 	{
 		if (PlayerItem is null || metaData is null)
@@ -437,26 +439,52 @@ public partial class MediaManager : IDisposable
 
 		if (PlayerViewController?.View is not null && PlayerViewController.ContentOverlayView is not null && !string.IsNullOrEmpty(MediaElement.MetadataArtworkUrl))
 		{
-			var image = UIImage.LoadFromData(NSData.FromUrl(new NSUrl(MediaElement.MetadataArtworkUrl))) ?? new UIImage();
-			var imageView = new UIImageView(image)
+			if (setPosterImageLoadingCanceller is not null)
 			{
-				ContentMode = UIViewContentMode.ScaleAspectFit,
-				TranslatesAutoresizingMaskIntoConstraints = false,
-				ClipsToBounds = true,
-				AutoresizingMask = UIViewAutoresizing.FlexibleDimensions
-			};
+				Debug.WriteLine("SetPoster download already running, cancelling before creating a new one");
+				setPosterImageLoadingCanceller.Cancel();
+			}
+			setPosterImageLoadingCanceller = new CancellationTokenSource();
+			Task.Factory.StartNew(() =>
+			{
+				try
+				{
+					var image = UIImage.LoadFromData(NSData.FromUrl(new NSUrl(MediaElement.MetadataArtworkUrl))) ??
+					            new UIImage();
+					var imageView = new UIImageView(image)
+					{
+						ContentMode = UIViewContentMode.ScaleAspectFit,
+						TranslatesAutoresizingMaskIntoConstraints = false,
+						ClipsToBounds = true,
+						AutoresizingMask = UIViewAutoresizing.FlexibleDimensions
+					};
 
-			PlayerViewController.ContentOverlayView.AddSubview(imageView);
-			NSLayoutConstraint.ActivateConstraints(
-			[
-				imageView.CenterXAnchor.ConstraintEqualTo(PlayerViewController.ContentOverlayView.CenterXAnchor),
-				imageView.CenterYAnchor.ConstraintEqualTo(PlayerViewController.ContentOverlayView.CenterYAnchor),
-				imageView.WidthAnchor.ConstraintLessThanOrEqualTo(PlayerViewController.ContentOverlayView.WidthAnchor),
-				imageView.HeightAnchor.ConstraintLessThanOrEqualTo(PlayerViewController.ContentOverlayView.HeightAnchor),
+					PlayerViewController.ContentOverlayView.AddSubview(imageView);
+					NSLayoutConstraint.ActivateConstraints(
+					[
+						imageView.CenterXAnchor.ConstraintEqualTo(PlayerViewController.ContentOverlayView
+							.CenterXAnchor),
+						imageView.CenterYAnchor.ConstraintEqualTo(PlayerViewController.ContentOverlayView
+							.CenterYAnchor),
+						imageView.WidthAnchor.ConstraintLessThanOrEqualTo(PlayerViewController.ContentOverlayView
+							.WidthAnchor),
+						imageView.HeightAnchor.ConstraintLessThanOrEqualTo(PlayerViewController.ContentOverlayView
+							.HeightAnchor),
 
-				// Maintain the aspect ratio
-				imageView.WidthAnchor.ConstraintEqualTo(imageView.HeightAnchor, image.Size.Width / image.Size.Height)
-			]);
+						// Maintain the aspect ratio
+						imageView.WidthAnchor.ConstraintEqualTo(imageView.HeightAnchor,
+							image.Size.Width / image.Size.Height)
+					]);
+				}
+				catch
+				{
+					return;
+				}
+				finally
+				{
+					setPosterImageLoadingCanceller = null;
+				}
+			}, setPosterImageLoadingCanceller.Token);
 		}
 	}
 
