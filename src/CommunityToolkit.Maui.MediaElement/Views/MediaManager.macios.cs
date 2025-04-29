@@ -290,13 +290,24 @@ public partial class MediaManager : IDisposable
 	int? playlistIndex = null;
 	protected virtual partial ValueTask PlatformUpdateSource()
 	{
-		MediaElement.CurrentStateChanged(MediaElementState.Opening);
-
 		AVAsset? asset = null;
 		if (Player is null)
 		{
 			return ValueTask.CompletedTask;
 		}
+
+		if (MediaElement.Source is null)
+		{
+			playlist.Clear();
+			playlistIndex = null;
+			PlayerItem = null;
+			
+			MediaElement.CurrentStateChanged(MediaElementState.None);
+			
+			return ValueTask.CompletedTask;
+		}
+		
+		MediaElement.CurrentStateChanged(MediaElementState.Opening);
 
 		if (MediaElement.Source is PlaylistMediaSource mediaSource)
 		{
