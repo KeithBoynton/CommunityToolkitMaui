@@ -3,7 +3,7 @@
 /// <summary>
 /// Represents a list of sources that can be played by <see cref="MediaElement"/>.
 /// </summary>
-public sealed class PlaylistMediaSource : MediaSource
+public sealed partial class PlaylistMediaSource : MediaSource
 {
 	/// <summary>
 	/// Backing store for the <see cref="Sources"/> property.
